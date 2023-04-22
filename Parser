@@ -1,0 +1,137 @@
+import java.util.List;
+
+public class Parser {
+    private static int current = 0;
+    private final List<Token> tokens;
+
+    public Parser(List<Token> tokens) {
+        this.tokens = tokens;
+    }
+
+    public AstNode parse() {
+        AstNode program = new AstNode(AstNodeType.PROGRAM);
+
+        while (!isAtEnd()) {
+            try {
+                program.getChildren().add(statement());
+            } catch (Exception e) {
+                System.err.println(e.getMessage());
+                current++;
+            }
+        }
+
+        return program;
+    }
+
+    private AstNode statement() {
+        if (match(TokenType.IDENTIFIER) && match(TokenType.EQUAL)) {
+            return assignment();
+        } else {
+            return expression();
+        }
+    }
+
+    private AstNode assignment() {
+        Token identifier = previous();
+        AstNode right = expression();
+        return new AstNode(AstNodeType.ASSIGNMENT, identifier, right);
+    }
+
+    private AstNode expression() {
+        AstNode left = term();
+
+        while (match(TokenType.PLUS, TokenType.MINUS)) {
+            Token operator = previous();
+            AstNode right = term();
+            left = new AstNode(operatorToAstNodeType(operator), left, right);
+        }
+
+        return left;
+    }
+
+    private AstNode term() {
+        AstNode left = factor();
+
+        while (match(TokenType.MULTIPLY, TokenType.DIVIDE)) {
+            Token operator = previous();
+            AstNode right = factor();
+            left = new AstNode(operatorToAstNodeType(operator), left, right);
+        }
+
+        return left;
+    }
+
+    private AstNode factor() {
+        if (match(TokenType.NUMBER)) {
+            return new AstNode(AstNodeType.LITERAL, previous());
+        } else if (match(TokenType.IDENTIFIER)) {
+            return new AstNode(AstNodeType.VARIABLE, previous());
+        } else if (match(TokenType.LEFT_PAREN)) {
+            AstNode node = expression();
+            consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.");
+            return node;
+        } else {
+            throw new RuntimeException("Expect expression.");
+        }
+    }
+
+    private Token consume(TokenType type, String message) {
+        if (check(type)) {
+            return advance();
+        }
+
+        throw new RuntimeException(message);
+    }
+
+    private boolean match(TokenType... types) {
+        for (TokenType type : types) {
+            if (check(type)) {
+                advance();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean check(TokenType type) {
+        if (isAtEnd()) {
+            return false;
+        }
+
+        return peek().getType() == type;
+    }
+
+    private Token advance() {
+        if (!isAtEnd()) {
+            current++;
+        }
+        return previous();
+    }
+
+    private boolean isAtEnd() {
+        return peek().getType() == TokenType.EOF;
+    }
+
+    private Token peek() {
+        return tokens.get(current);
+    }
+
+    private Token previous() {
+        return tokens.get(current - 1);
+    }
+
+    private AstNodeType operatorToAstNodeType(Token operator) {
+        if (operator.getType() == TokenType.PLUS) {
+            return AstNodeType.ADD;
+        } else if (operator.getType() == TokenType.MINUS) {
+            return AstNodeType.SUBTRACT;
+        } else if (operator.getType() == TokenType.MULTIPLY) {
+            return AstNodeType.MULTIPLY;
+        } else if (operator.getType() == TokenType.DIVIDE) {
+            return AstNodeType.DIVIDE;
+        }
+
+        throw new RuntimeException("Invalid operator type");
+    }
+}
